@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/url"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"collab-crdt/internal/crdt"
 	"github.com/gorilla/websocket"
@@ -13,14 +15,16 @@ import (
 // SyncClient represents a client connection to the relay server.
 // It wraps a local CRDT Document and synchronizes its state with the server.
 type SyncClient struct {
-	Doc       *crdt.Document
-	conn      *websocket.Conn
-	send      chan []byte
-	done      chan struct{}
-	closeOnce sync.Once
-	serverURL string
-	docID     string
-	siteID    string
+	Doc               *crdt.Document
+	conn              *websocket.Conn
+	send              chan []byte
+	done              chan struct{}
+	closeOnce         sync.Once
+	serverURL         string
+	docID             string
+	siteID            string
+	lastLocalEditTime int64 // UnixNano
+	lastUpdateTime    int64 // UnixNano
 }
 
 // NewSyncClient instantiates a new SyncClient with an empty CRDT Document.
@@ -83,6 +87,10 @@ func (c *SyncClient) Disconnect() {
 
 // LocalInsert applies an insert locally and transmits the operation to the server.
 func (c *SyncClient) LocalInsert(offset int, value rune) error {
+	now := time.Now().UnixNano()
+	atomic.StoreInt64(&c.lastLocalEditTime, now)
+	atomic.StoreInt64(&c.lastUpdateTime, now)
+
 	op, err := c.Doc.LocalInsert(offset, value)
 	if err != nil {
 		return err
@@ -107,6 +115,10 @@ func (c *SyncClient) LocalInsert(offset int, value rune) error {
 
 // LocalDelete applies a delete locally and transmits the operation to the server.
 func (c *SyncClient) LocalDelete(offset int) error {
+	now := time.Now().UnixNano()
+	atomic.StoreInt64(&c.lastLocalEditTime, now)
+	atomic.StoreInt64(&c.lastUpdateTime, now)
+
 	op, err := c.Doc.LocalDelete(offset)
 	if err != nil {
 		return err
@@ -166,10 +178,24 @@ func (c *SyncClient) readPump() {
 			for _, op := range msg.History {
 				c.Doc.Apply(op)
 			}
+			now := time.Now().UnixNano()
+			atomic.StoreInt64(&c.lastUpdateTime, now)
 		case MsgOp:
 			if msg.Op != nil {
 				c.Doc.Apply(*msg.Op)
+				now := time.Now().UnixNano()
+				atomic.StoreInt64(&c.lastUpdateTime, now)
 			}
 		}
 	}
+}
+
+// GetLastLocalEditTime returns the UnixNano timestamp of the last local edit.
+func (c *SyncClient) GetLastLocalEditTime() int64 {
+	return atomic.LoadInt64(&c.lastLocalEditTime)
+}
+
+// GetLastUpdateTime returns the UnixNano timestamp of the last document update.
+func (c *SyncClient) GetLastUpdateTime() int64 {
+	return atomic.LoadInt64(&c.lastUpdateTime)
 }

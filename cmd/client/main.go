@@ -16,6 +16,7 @@ func main() {
 	docFlag := flag.String("doc", "shared-doc", "Document ID")
 	siteFlag := flag.String("site", "client-site", "Site ID")
 	durationFlag := flag.Int("duration", 3, "Duration to run in seconds")
+	deleteFlag := flag.Float64("delete", 0.2, "Probability of deletion operations (0.0 to 1.0)")
 
 	flag.Parse()
 
@@ -30,7 +31,7 @@ func main() {
 	defer cancel()
 
 	// Run simulated typing loop
-	runTypist(ctx, client)
+	runTypist(ctx, client, *deleteFlag)
 
 	// Wait for any remaining in-transit operations to synchronize
 	log.Printf("[%s] Finished typing. Waiting for network sync...", *siteFlag)
@@ -39,9 +40,18 @@ func main() {
 	// Output the final state in a format the test harness can parse
 	finalText := client.Doc.ToString()
 	fmt.Printf("RESULT:%s:%s\n", *siteFlag, finalText)
+
+	// Output execution performance and memory footprint metrics
+	fmt.Printf("METRICS:%s:%d:%d:%d:%d\n",
+		*siteFlag,
+		client.Doc.GetNodesCount(),
+		len(finalText),
+		client.GetLastLocalEditTime(),
+		client.GetLastUpdateTime(),
+	)
 }
 
-func runTypist(ctx context.Context, c *collabsync.SyncClient) {
+func runTypist(ctx context.Context, c *collabsync.SyncClient, deleteRatio float64) {
 	letters := []rune("abcdefghijklmnopqrstuvwxyz")
 	prng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	ticker := time.NewTicker(time.Duration(50+prng.Intn(101)) * time.Millisecond)
@@ -55,8 +65,8 @@ func runTypist(ctx context.Context, c *collabsync.SyncClient) {
 			content := c.Doc.GetContent()
 			length := len(content)
 
-			// 80% chance of inserting, 20% chance of deleting
-			if length == 0 || prng.Float32() < 0.8 {
+			// If document is empty or random roll is >= deleteRatio, perform insert
+			if length == 0 || prng.Float64() >= deleteRatio {
 				offset := 0
 				if length > 0 {
 					offset = prng.Intn(length + 1)
