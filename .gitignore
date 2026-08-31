@@ -27,3 +27,6 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+
+# Local diagnostic test logs
+diagnostics/

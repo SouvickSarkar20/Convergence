@@ -340,3 +340,17 @@ func (doc *Document) GetNodesCount() int {
 	defer doc.RUnlock()
 	return len(doc.nodes)
 }
+
+// PrintDebugList prints the entire internal RGA linked list structure.
+func (doc *Document) PrintDebugList() {
+	doc.RLock()
+	defer doc.RUnlock()
+	curr := doc.head
+	for curr != nil {
+		fmt.Printf("NODE: ID={%d,%s} Parent={%d,%s} Val=%c Del=%t\n",
+			curr.ID.Timestamp, curr.ID.SiteID,
+			curr.ParentID.Timestamp, curr.ParentID.SiteID,
+			curr.Value, curr.Deleted)
+		curr = curr.Next
+	}
+}

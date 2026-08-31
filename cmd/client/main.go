@@ -49,6 +49,8 @@ func main() {
 		client.GetLastLocalEditTime(),
 		client.GetLastUpdateTime(),
 	)
+
+	client.Doc.PrintDebugList()
 }
 
 func runTypist(ctx context.Context, c *collabsync.SyncClient, deleteRatio float64) {
