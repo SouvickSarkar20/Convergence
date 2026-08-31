@@ -21,3 +21,9 @@ bin/
 # OS temp files
 .DS_Store
 Thumbs.db
+
+# Python virtual environment and cache
+venv/
+.venv/
+__pycache__/
+*.pyc
