@@ -1,4 +1,4 @@
-# collab-crdt
+# Convergence
 
 A production-grade, distributed **Collaborative Text Editing engine** built in Go, implementing the **Replicated Growing Array (RGA)** Conflict-free Replicated Data Type (CRDT) over a **Peer-to-Peer (P2P) WebSocket Gossip mesh**.
 
