@@ -33,3 +33,5 @@ diagnostics/
 
 # Temporary tape recording files
 demo.tape
+data/demo-doc.aof
+internal/sync/data/doc1.aof

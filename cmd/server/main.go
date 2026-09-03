@@ -13,9 +13,11 @@ import (
 func main() {
 	portFlag := flag.String("port", "8080", "Port to listen on")
 	peersFlag := flag.String("peers", "", "Comma-separated peer WebSocket URLs (e.g. ws://localhost:8080/peer)")
+	dataDirFlag := flag.String("data-dir", "data", "Directory to store AOF log files")
 	flag.Parse()
 
 	server := sync.NewServer()
+	server.SetDataDir(*dataDirFlag)
 
 	// Client endpoint
 	http.HandleFunc("/ws", server.HandleWebSocket)

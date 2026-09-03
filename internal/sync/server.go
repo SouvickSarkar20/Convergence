@@ -2,8 +2,11 @@ package sync
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -102,6 +105,7 @@ type Server struct {
 	sessions map[string]*Session
 	peers    map[*Peer]bool
 	peersMu  sync.RWMutex
+	dataDir  string
 }
 
 // NewServer creates a new instance of the Relay Server.
@@ -109,6 +113,44 @@ func NewServer() *Server {
 	return &Server{
 		sessions: make(map[string]*Session),
 		peers:    make(map[*Peer]bool),
+		dataDir:  "data",
+	}
+}
+
+// SetDataDir sets the storage directory for AOF log files.
+func (s *Server) SetDataDir(dir string) {
+	s.Lock()
+	defer s.Unlock()
+	s.dataDir = dir
+}
+
+// appendOpToAOF appends an operation as a JSON line to disk (data/<docID>.aof).
+func (s *Server) appendOpToAOF(docID string, op crdt.Op) {
+	if s.dataDir == "" {
+		s.dataDir = "data"
+	}
+	if err := os.MkdirAll(s.dataDir, 0755); err != nil {
+		log.Printf("[AOF] Failed to create data directory: %v", err)
+		return
+	}
+
+	filepath := filepath.Join(s.dataDir, fmt.Sprintf("%s.aof", docID))
+	f, err := os.OpenFile(filepath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("[AOF] Failed to open AOF file %s: %v", filepath, err)
+		return
+	}
+	defer f.Close()
+
+	opBytes, err := json.Marshal(op)
+	if err != nil {
+		log.Printf("[AOF] Failed to marshal op for AOF: %v", err)
+		return
+	}
+
+	opBytes = append(opBytes, '\n')
+	if _, err := f.Write(opBytes); err != nil {
+		log.Printf("[AOF] Failed to write to AOF file %s: %v", filepath, err)
 	}
 }
 
@@ -247,6 +289,7 @@ func (s *Server) mergePeerSync(sourcePeer *Peer, syncAll map[string][]crdt.Op, i
 			if !existingOps[opKey{id: op.ID, kind: op.Type}] {
 				session.history = append(session.history, op)
 				newOps = append(newOps, op)
+				s.appendOpToAOF(docID, op)
 			}
 		}
 		session.Unlock()
@@ -345,6 +388,7 @@ func (s *Server) broadcastOp(sender *Client, docID string, op crdt.Op) {
 
 	session.Lock()
 	session.history = append(session.history, op)
+	s.appendOpToAOF(docID, op)
 
 	msg := Message{
 		Type:  MsgOp,
@@ -411,6 +455,7 @@ func (s *Server) broadcastOpFromPeer(sourcePeer *Peer, docID string, op crdt.Op)
 		}
 	}
 	session.history = append(session.history, op)
+	s.appendOpToAOF(docID, op)
 
 	msg := Message{
 		Type:  MsgOp,
