@@ -30,3 +30,6 @@ __pycache__/
 
 # Local diagnostic test logs
 diagnostics/
+
+# Temporary tape recording files
+demo.tape
